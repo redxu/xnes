@@ -8,11 +8,11 @@ extern "C" {
 
 struct ROMHeader{
 	unsigned char magic[4];
-	unsigned char PRGCount;
-	unsigned char CHRCount;
+	unsigned char PRGBank;
+	unsigned char CHRBank;
 	unsigned char Control1;
 	unsigned char Control2;
-	unsigned char RamCount;
+	unsigned char RamBank;
 	unsigned char Reserved[7];
 };
 

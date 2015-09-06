@@ -4,7 +4,7 @@
 
 
 
-static unsigned char ROMMAGIC[4] = {0x4e,0x45,0x53,0x1a};
+static const unsigned char ROMMAGIC[4] = {0x4e,0x45,0x53,0x1a};
 
 
 
@@ -27,19 +27,26 @@ int Init_NesRom(const char* filepath)
 	fread(rom,fsize,1,file);
 	fclose(file);
 
+	if(fsize <= 16)
+	{
+		printf("wrong nes rom!\n");
+		return -1;
+	}
+
 	if(memcmp(rom->header.magic,ROMMAGIC,4) != 0)
 	{
 		printf("magic wrong!\n");
 		return -1;
 	}
 
-	printf("PRGCount=%d\n",rom->header.PRGCount);
-	printf("CHRCount=%d\n",rom->header.CHRCount);
+	printf("PRGBank=%d\n",rom->header.PRGBank);
+	printf("CHRBank=%d\n",rom->header.CHRBank);
 	printf("Control1=%d\n",rom->header.Control1);
 	printf("Control2=%d\n",rom->header.Control2);
-	printf("RamCount=%d\n",rom->header.RamCount);
+	printf("RamBank=%d\n",rom->header.RamBank);
 
 	Init_Memory(rom);
+	Init_Cpu();
 
 	return 0;
 }

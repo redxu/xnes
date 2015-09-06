@@ -17,3 +17,12 @@ struct CPU{
 	char V;			//Overflow Flag Flag
 	char N;			//Negative Flag
 };
+
+static struct CPU global_cpu;
+
+
+void Init_Cpu()
+{
+	memset(&global_cpu,0,sizeof(global_cpu));
+}
+

@@ -45,6 +45,7 @@ int Init_NesRom(const char* filepath)
 	printf("Control2=%d\n",rom->header.Control2);
 	printf("RamBank=%d\n",rom->header.RamBank);
 
+	Init_Console(rom);
 	Init_Memory(rom);
 	Init_Cpu();
 

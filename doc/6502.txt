@@ -1309,7 +1309,7 @@ the 6510 (the C64 processor).
         5A - Future Expansion           7A - Future Expansion
         5B - Future Expansion           7B - Future Expansion
         5C - Future Expansion           7C - Future Expansion
-        50 - EOR - Absolute,X           70 - ADC - Absolute,X
+        5D - EOR - Absolute,X           7D - ADC - Absolute,X
         5E - LSR - Absolute,X           7E - ROR - Absolute,X
         5F - Future Expansion           7F - Future Expansion
 
@@ -1326,7 +1326,7 @@ the 6510 (the C64 processor).
         8A - TXA                        AA - TAX
         8B - Future Expansion           AB - Future Expansion
         8C - STY - Absolute             AC - LDY - Absolute
-        80 - STA - Absolute             AD - LDA - Absolute
+        8D - STA - Absolute             AD - LDA - Absolute
         8E - STX - Absolute             AE - LDX - Absolute
         8F - Future Expansion           AF - Future Expansion
         90 - BCC                        B0 - BCS
@@ -1342,7 +1342,7 @@ the 6510 (the C64 processor).
         9A - TXS                        BA - TSX
         9B - Future Expansion           BB - Future Expansion
         9C - Future Expansion           BC - LDY - Absolute,X
-        90 - STA - Absolute,X           BD - LDA - Absolute,X
+        9D - STA - Absolute,X           BD - LDA - Absolute,X
         9E - Future Expansion           BE - LDX - Absolute,Y
         9F - Future Expansion           BF - Future Expansion
 

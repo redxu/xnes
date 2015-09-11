@@ -47,7 +47,7 @@ int Init_NesRom(const char* filepath)
 
 	Init_Console(rom);
 	Init_Memory(rom);
-	Init_Cpu();
+	Cpu_Init();
 
 	return 0;
 }

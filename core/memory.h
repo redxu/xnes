@@ -13,6 +13,10 @@ unsigned char Mem_ReadB(uint16_t address);
 
 uint16_t Mem_ReadW(uint16_t address);
 
+void Mem_WriteB(uint16_t address,unsigned char value);
+
+void Mem_WriteW(uint16_t address,uint16_t value);
+
 #ifdef __cplusplus
 }
 #endif

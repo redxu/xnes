@@ -1,12 +1,15 @@
 /*******************************************************
 *	6502 CPU 
 *******************************************************/
+#include <stdio.h>
 #include <stdint.h>
+#include <string.h>
 #include "def.h"
 #include "memory.h"
 #include "cpu.h"
 
-//macros not implemented opcode
+/*********** macros *************/
+//not implemented opcode
 #define OP_FUTURE(code) {code,Future,1,OP_FUT}
 
 struct CPU{
@@ -25,9 +28,11 @@ struct CPU{
 	char Reserved;
 };
 
+static struct CPU global_cpu;
+
 enum ADDRESS_MODE
 {
-	Future,
+	Future = 0,
 	ZeroPage,
 	ZeroPage_X,
 	ZeroPage_Y,
@@ -43,6 +48,8 @@ enum ADDRESS_MODE
 	Relative
 };
 
+static int OPBytes[] = {1,-1,-1,-1,3,-1,-1,-1,-1,-1,1,-1,2,2};
+
 struct OPCODE{
 	unsigned char opcode;		//op code
 	unsigned char mode;			//address mode
@@ -51,7 +58,7 @@ struct OPCODE{
 };
 
 
-static struct OPCODE __ops[256] = {
+static const struct OPCODE __ops[256] = {
 	{0x00,Implied,7,OP_BRK},
 	{0x01,Indirect_X,6,OP_ORA},
 	OP_FUTURE(0x02),
@@ -325,8 +332,217 @@ static struct OPCODE __ops[256] = {
 	OP_FUTURE(0xff)
 };
 
-static struct CPU global_cpu;
 
+void Cpu_SetZ(unsigned char b)
+{
+	global_cpu.Z = (b == 0 ? 1 : 0);
+}
+
+void Cpu_SetN(unsigned char b)
+{
+	global_cpu.N = ((b & 0x80) == 0 ? 0 : 1);
+}
+
+/**
+ * Push 1 Byte Onto Stack
+ */
+void Cpu_Push(unsigned char b)
+{
+	Mem_WriteB((0x100|global_cpu.SP),b);
+	global_cpu.SP--;
+}
+
+/**
+ * Push 2 Bytes Onto Stack
+ */
+void Cpu_Push16(uint16_t w)
+{
+	unsigned char hi = w >> 8;
+	unsigned char lo = w & 0xff;
+	Cpu_Push(hi);
+	Cpu_Push(lo);
+}
+
+/**
+ * DEBUG OPCODE
+ * @param op [description]
+ */
+static void Cpu_DebugOP(struct OPCODE* op)
+{
+	printf("OPDBG:[0x%02X] mode[%d] BYTES[%d] %d %s\n",op->opcode,op->mode,OPBytes[op->mode],op->cycles,op->name);
+}
+
+/**
+ * show all opcodes
+ */
+static void Cpu_ShowOps(void)
+{
+	int i;
+	for(i=0;i<256;i++)
+	{
+		if(__ops[i].mode == Future)
+			continue;
+		printf("[0x%02X] %s mode=%d\n",__ops[i].opcode,__ops[i].name,__ops[i].mode);
+	}
+}
+
+/**
+ * SEI Set interrupt disable status
+ */
+void Cpu_Handle_OP_SEI(uint16_t address)
+{
+	UNUSED(address);
+	global_cpu.I = 1;
+}
+
+/**
+ * CLD Clear decimal mode
+ */
+void Cpu_Handle_OP_CLD(uint16_t address)
+{
+	UNUSED(address);
+	global_cpu.D = 0;
+}
+
+/**
+ * LDX Load index X with memory
+ */
+void Cpu_Handle_OP_LDX(uint16_t address)
+{
+	global_cpu.X = Mem_ReadB(address);
+	Cpu_SetZ(global_cpu.X);
+	Cpu_SetN(global_cpu.N);
+}
+
+/**
+ * TXS Transfer index X to stack pointer
+ */
+void Cpu_Handle_OP_TXS(uint16_t address)
+{
+	global_cpu.SP = global_cpu.X;
+}
+
+/**
+ * LDA Load accumulator with memory
+ */
+void Cpu_Handle_OP_LDA(uint16_t address)
+{
+	global_cpu.A = Mem_ReadB(address);
+	Cpu_SetZ(global_cpu.A);
+	Cpu_SetN(global_cpu.N);
+}
+
+/**
+ * BPL Branch on result plus
+ */
+void Cpu_Handle_OP_BPL(uint16_t address)
+{
+	if(global_cpu.N == 0)
+	{
+		global_cpu.PC = address;
+		//add cyles..
+		//TODO...
+	}
+}
+
+/**
+ * ORA "OR" memory with accumulator
+ */
+void Cpu_Handle_OP_ORA(uint16_t address)
+{
+	global_cpu.A = global_cpu.A | Mem_ReadB(address);
+	Cpu_SetZ(global_cpu.A);
+	Cpu_SetN(global_cpu.A);
+}
+
+/**
+ * BNE Branch on result not zero
+ */
+void Cpu_Handle_OP_BNE(uint16_t address)
+{
+	if(global_cpu.Z == 0)
+	{
+		global_cpu.PC = address;
+		//TODO...
+		//add cyles
+	}
+}
+
+/**
+ * JSR Jump to new location saving return address
+ */
+void Cpu_Handle_OP_JSR(uint16_t address)
+{
+	Cpu_Push16(global_cpu.PC - 1);
+	global_cpu.PC = address;
+}
+
+/**
+ * PHP Push processor status on stack
+ */
+void Cpu_Handle_OP_PHP(uint16_t address)
+{
+
+}
+
+/**
+ * BRK Force Break
+ */
+void Cpu_Handle_OP_BRK(uint16_t address)
+{
+	Cpu_Push16(global_cpu.PC);
+	Cpu_Handle_OP_PHP(address);
+	Cpu_Handle_OP_SEI(address);
+	global_cpu.PC = Mem_ReadW(0xFFFE);
+}
+
+void Cpu_Handle_OP(const char* name,uint16_t address)
+{
+	if(strcmp(name,OP_SEI) == 0)
+	{
+		Cpu_Handle_OP_SEI(address);
+	}
+	else if(strcmp(name,OP_CLD) == 0)
+	{
+		Cpu_Handle_OP_CLD(address);
+	}
+	else if(strcmp(name,OP_LDX) == 0)
+	{
+		Cpu_Handle_OP_LDX(address);
+	}
+	else if(strcmp(name,OP_TXS) == 0)
+	{
+		Cpu_Handle_OP_TXS(address);
+	}
+	else if(strcmp(name,OP_LDA) == 0)
+	{
+		Cpu_Handle_OP_LDA(address);
+	}
+	else if(strcmp(name,OP_BPL) == 0)
+	{
+		Cpu_Handle_OP_BPL(address);
+	}
+	else if(strcmp(name,OP_ORA) == 0)
+	{
+		Cpu_Handle_OP_ORA(address);
+	}
+	else if(strcmp(name,OP_BNE) == 0)
+	{
+		Cpu_Handle_OP_BNE(address);
+	}
+	else if(strcmp(name,OP_JSR) == 0)
+	{
+		Cpu_Handle_OP_JSR(address);
+	}
+	else if(strcmp(name,OP_BRK) == 0)
+	{
+		Cpu_Handle_OP_BRK(address);
+	}
+	else
+	{
+		printf("UnHandled OP %s\n",name);
+	}
+}
 
 static void Cpu_SetFlags(unsigned char flags)
 {
@@ -341,18 +557,7 @@ static void Cpu_SetFlags(unsigned char flags)
 }
 
 
-void Cpu_ShowOps(void)
-{
-	int i;
-	for(i=0;i<256;i++)
-	{
-		if(__ops[i].mode == Future)
-			continue;
-		printf("[0x%02x] %s mode=%d\n",__ops[i].opcode,__ops[i].name,__ops[i].mode);
-	}
-}
-
-void Init_Cpu(void)
+void Cpu_Init(void)
 {
 	memset(&global_cpu,0,sizeof(global_cpu));
 	global_cpu.PC = Mem_ReadW(0xFFFC);
@@ -360,14 +565,85 @@ void Init_Cpu(void)
 	Cpu_SetFlags(0x24);
 
 	//test
-	Cpu_Step();
-	Cpu_ShowOps();
+	//Cpu_Step();
 }
 
 
-void Cpu_Step(void)
+int Cpu_Step(void)
 {
+	uint16_t address;
 	unsigned char opcode = Mem_ReadB(global_cpu.PC);
-	printf("opcode=%x\n",opcode);
+	struct OPCODE* OP = &__ops[opcode];
+	Cpu_DebugOP(OP);
+	
+	if(OP->mode == ZeroPage)
+	{
+		address = Mem_ReadB(global_cpu.PC + 1);
+	}
+	else if(OP->mode == ZeroPage_X)
+	{
+		address = Mem_ReadB(global_cpu.PC + 1) + global_cpu.X;
+	}
+	else if(OP->mode == ZeroPage_Y)
+	{
+		address = Mem_ReadB(global_cpu.PC + 1) + global_cpu.Y;
+	}
+	else if(OP->mode == Absolute)
+	{
+		address = Mem_ReadB(global_cpu.PC + 1);
+	}
+	else if(OP->mode == Absolute_X)
+	{
+		address = Mem_ReadB(global_cpu.PC + 1); + global_cpu.X;
+		//calc page diff
+	}
+	else if(OP->mode == Absolute_Y)
+	{
+		address = Mem_ReadB(global_cpu.PC + 1); + global_cpu.Y;
+		//calc page diff
+	}
+	else if(OP->mode == Indirect)
+	{
+		printf("OPMODE[%d] Indirect unsigned\n",OP->mode);
+		//cpu read bug
+	}
+	else if(OP->mode == Indirect_X)
+	{
+		printf("OPMODE[%d] Indirect unsigned\n",OP->mode);
+		//cpu read bug
+	}
+	else if(OP->mode == Indirect_Y)
+	{
+		printf("OPMODE[%d] Indirect unsigned\n",OP->mode);
+		//cpu read bug
+	}
+	else if(OP->mode == Implied)
+	{
+		address = 0;
+	}
+	else if(OP->mode == Accumulator)
+	{
+		address = 0;
+	}
+	else if(OP->mode == Immediate)
+	{
+		address = global_cpu.PC + 1;
+	}
+	else if(OP->mode == Relative)
+	{
+		unsigned char offset = Mem_ReadB(global_cpu.PC + 1);
+		if(offset < 0x80)
+			address = global_cpu.PC + 2 + offset;
+		else
+			address = global_cpu.PC + 2 + offset - 0x100;
+	}
+
+	global_cpu.PC += OPBytes[OP->mode];
+	Cpu_Handle_OP(OP->name,address);
+	
+
+	printf("DEBUG PC=0x%04x\n",global_cpu.PC);
+
+	return OP->cycles;
 }
 

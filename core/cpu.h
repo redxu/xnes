@@ -7,10 +7,10 @@ extern "C" {
 #endif
 
 
-void Init_Cpu(void);
+void Cpu_Init(void);
 
 
-void Cpu_Step(void);
+int Cpu_Step(void);
 
 
 #ifdef __cplusplus

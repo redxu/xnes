@@ -51,3 +51,15 @@ uint16_t Mem_ReadW(uint16_t address)
 	return Mem_ReadB(address) + (Mem_ReadB(address+1) << 8);
 }
 
+void Mem_WriteB(uint16_t address,unsigned char value)
+{
+	global_memory[address] = value;
+}
+
+void Mem_WriteW(uint16_t address,uint16_t value)
+{
+	unsigned char hi = value >> 8;
+	unsigned char lo = value & 0xff;
+	Mem_WriteB(address,hi);
+	Mem_WriteB(address+1,lo);
+}

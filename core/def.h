@@ -2,6 +2,7 @@
 #define __DEF__H__
 
 
+#define UNUSED(x) ((void)x)
 
 
 
@@ -63,9 +64,10 @@ OPCODE NAMES
 #define OP_INX	"INX"
 #define OP_INY	"INY"
 #define OP_BNE	"BNE"
+#define OP_BEQ	"BEQ"
 #define OP_SBC	"SBC"
 #define OP_NOP	"NOP"
-#define OP_BEQ	"BEQ"
+
 
 
 #endif

@@ -12,6 +12,14 @@
 //not implemented opcode
 #define OP_FUTURE(code) {code,Future,1,OP_FUT}
 
+/*********** declaration **********/
+static unsigned char Cpu_GetFlags(void);
+
+/*********************************
+ status register
+ 7 6 5 4 3 2 1 0
+ N V   B D I Z C
+*********************************/
 struct CPU{
 	uint16_t PC;	//Program Counter
 	char SP;		//Stack Pointer
@@ -23,9 +31,10 @@ struct CPU{
 	char I;			//Interrupt Disable Flag
 	char D;			//Decimal Mode Flag
 	char B;			//Break Command Flag
+	char U;			//Unused
 	char V;			//Overflow Flag Flag
 	char N;			//Negative Flag
-	char Reserved;
+	char Reserved[8];
 };
 
 static struct CPU global_cpu;
@@ -48,7 +57,7 @@ enum ADDRESS_MODE
 	Relative
 };
 
-static int OPBytes[] = {1,-1,-1,-1,3,-1,-1,-1,-1,-1,1,-1,2,2};
+static int OPBytes[] = {1,2,-1,-1,3,-1,-1,-1,-1,-1,1,-1,2,2};
 
 struct OPCODE{
 	unsigned char opcode;		//op code
@@ -346,7 +355,7 @@ void Cpu_SetN(unsigned char b)
 /**
  * Push 1 Byte Onto Stack
  */
-void Cpu_Push(unsigned char b)
+void Cpu_PushB(unsigned char b)
 {
 	Mem_WriteB((0x100|global_cpu.SP),b);
 	global_cpu.SP--;
@@ -355,12 +364,12 @@ void Cpu_Push(unsigned char b)
 /**
  * Push 2 Bytes Onto Stack
  */
-void Cpu_Push16(uint16_t w)
+void Cpu_PushW(uint16_t w)
 {
 	unsigned char hi = w >> 8;
 	unsigned char lo = w & 0xff;
-	Cpu_Push(hi);
-	Cpu_Push(lo);
+	Cpu_PushB(hi);
+	Cpu_PushB(lo);
 }
 
 /**
@@ -411,7 +420,7 @@ void Cpu_Handle_OP_LDX(uint16_t address)
 {
 	global_cpu.X = Mem_ReadB(address);
 	Cpu_SetZ(global_cpu.X);
-	Cpu_SetN(global_cpu.N);
+	Cpu_SetN(global_cpu.X);
 }
 
 /**
@@ -428,8 +437,9 @@ void Cpu_Handle_OP_TXS(uint16_t address)
 void Cpu_Handle_OP_LDA(uint16_t address)
 {
 	global_cpu.A = Mem_ReadB(address);
+	printf("address=0x%x a=%d\n",address,global_cpu.A);
 	Cpu_SetZ(global_cpu.A);
-	Cpu_SetN(global_cpu.N);
+	Cpu_SetN(global_cpu.A);
 }
 
 /**
@@ -473,7 +483,7 @@ void Cpu_Handle_OP_BNE(uint16_t address)
  */
 void Cpu_Handle_OP_JSR(uint16_t address)
 {
-	Cpu_Push16(global_cpu.PC - 1);
+	Cpu_PushW(global_cpu.PC - 1);
 	global_cpu.PC = address;
 }
 
@@ -482,7 +492,8 @@ void Cpu_Handle_OP_JSR(uint16_t address)
  */
 void Cpu_Handle_OP_PHP(uint16_t address)
 {
-
+	UNUSED(address);
+	Cpu_PushB(Cpu_GetFlags() | 0x10);
 }
 
 /**
@@ -490,12 +501,36 @@ void Cpu_Handle_OP_PHP(uint16_t address)
  */
 void Cpu_Handle_OP_BRK(uint16_t address)
 {
-	Cpu_Push16(global_cpu.PC);
+	Cpu_PushW(global_cpu.PC);
 	Cpu_Handle_OP_PHP(address);
 	Cpu_Handle_OP_SEI(address);
 	global_cpu.PC = Mem_ReadW(0xFFFE);
 }
 
+/**
+ * INC Increment memory by one
+ */
+void Cpu_Handle_OP_INC(uint16_t address)
+{
+	unsigned char b = Mem_ReadB(address) + 1;
+	Mem_WriteB(address,b);
+	Cpu_SetZ(b);
+	Cpu_SetN(b);
+}
+
+/**
+ * STA Store accumulator in memory
+ */
+void Cpu_Handle_OP_STA(uint16_t address)
+{
+	Mem_WriteB(address,global_cpu.A);
+}
+
+/**
+ * Dispatch op code
+ * @param name    [OPNAME]
+ * @param address [address]
+ */
 void Cpu_Handle_OP(const char* name,uint16_t address)
 {
 	if(strcmp(name,OP_SEI) == 0)
@@ -538,10 +573,38 @@ void Cpu_Handle_OP(const char* name,uint16_t address)
 	{
 		Cpu_Handle_OP_BRK(address);
 	}
+	else if(strcmp(name,OP_INC) == 0)
+	{
+		Cpu_Handle_OP_INC(address);
+	}
+	else if(strcmp(name,OP_STA) == 0)
+	{
+		Cpu_Handle_OP_STA(address);
+	}
 	else
 	{
 		printf("UnHandled OP %s\n",name);
 	}
+}
+
+void Cpu_Handle_IntNMI(void)
+{
+	Cpu_PushW(global_cpu.PC);
+	Cpu_Handle_OP_PHP(0);
+	global_cpu.PC = Mem_ReadW(0xFFFA);
+	global_cpu.I = 1;
+	//TODO.. 
+	//cycles.
+}
+
+void Cpu_Handle_IntIRQ(void)
+{
+	Cpu_PushW(global_cpu.PC);
+	Cpu_Handle_OP_PHP(0);
+	global_cpu.PC = Mem_ReadW(0xFFFE);
+	global_cpu.I = 1;
+	//TODO.. 
+	//cycles.
 }
 
 static void Cpu_SetFlags(unsigned char flags)
@@ -551,11 +614,24 @@ static void Cpu_SetFlags(unsigned char flags)
 	global_cpu.I = (flags >> 2) & 1;
 	global_cpu.D = (flags >> 3) & 1;
 	global_cpu.B = (flags >> 4) & 1;
-	//global_cpu.U = (flags >> 5) & 1;
-	global_cpu.V = (flags >> 5) & 1;
-	global_cpu.N = (flags >> 6) & 1;
+	global_cpu.U = (flags >> 5) & 1;
+	global_cpu.V = (flags >> 6) & 1;
+	global_cpu.N = (flags >> 7) & 1;
 }
 
+static unsigned char Cpu_GetFlags(void)
+{
+	unsigned char flags = 0;
+	flags |= global_cpu.C << 0;
+	flags |= global_cpu.Z << 1;
+	flags |= global_cpu.I << 2;
+	flags |= global_cpu.D << 3;
+	flags |= global_cpu.B << 4;
+	flags |= global_cpu.U << 5;
+	flags |= global_cpu.V << 6;
+	flags |= global_cpu.N << 7;
+	return flags;
+}
 
 void Cpu_Init(void)
 {
@@ -563,9 +639,6 @@ void Cpu_Init(void)
 	global_cpu.PC = Mem_ReadW(0xFFFC);
 	global_cpu.SP = 0xFD;
 	Cpu_SetFlags(0x24);
-
-	//test
-	//Cpu_Step();
 }
 
 
@@ -575,6 +648,8 @@ int Cpu_Step(void)
 	unsigned char opcode = Mem_ReadB(global_cpu.PC);
 	struct OPCODE* OP = &__ops[opcode];
 	Cpu_DebugOP(OP);
+	static int interrupt = 0;
+	
 	
 	if(OP->mode == ZeroPage)
 	{
@@ -590,7 +665,7 @@ int Cpu_Step(void)
 	}
 	else if(OP->mode == Absolute)
 	{
-		address = Mem_ReadB(global_cpu.PC + 1);
+		address = Mem_ReadW(global_cpu.PC + 1);
 	}
 	else if(OP->mode == Absolute_X)
 	{
@@ -643,6 +718,18 @@ int Cpu_Step(void)
 	
 
 	printf("DEBUG PC=0x%04x\n",global_cpu.PC);
+
+	if(interrupt++ == 17)
+	{
+		//ppu.
+		//PPU status register
+		Mem_WriteB(0x2002,0x80);
+		//Cpu_Handle_IntNMI();
+	}
+	else
+	{
+		Mem_WriteB(0x2002,0x0);
+	}
 
 	return OP->cycles;
 }

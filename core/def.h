@@ -2,10 +2,25 @@
 #define __DEF__H__
 
 
-#define UNUSED(x) ((void)x)
+#define UNUSED(x) do { x = x; } while (0)
 
 
+/***************
+VIDEO MODES
+****************/
+#define VIDEO_PAL	0
+#define VIDEO_NTSC	1
+#define VIDEO_MODE	VIDEO_NTSC
 
+#define HTOTAL_PAL			
+#define VTOTAL_PAL			312
+#define HTOTAL_NTSC			341
+#define VTOTAL_NTSC			262		//scanline
+
+#define SCREEN_WIDTH_PAL	256
+#define SCREEN_HEIGHT_PAL	240
+#define SCREEN_WIDTH_NTSC	256
+#define SCREEN_HEIGHT_NTSC	224
 
 /***************
 OPCODE NAMES

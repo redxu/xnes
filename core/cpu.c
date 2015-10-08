@@ -57,7 +57,7 @@ enum ADDRESS_MODE
 	Relative
 };
 
-static int OPBytes[] = {1,2,-1,-1,3,-1,-1,-1,-1,-1,1,-1,2,2};
+static int OPBytes[] = {1,2,2,2,3,3,3,3,2,2,1,1,2,2};
 
 struct OPCODE{
 	unsigned char opcode;		//op code
@@ -424,6 +424,16 @@ void Cpu_Handle_OP_LDX(uint16_t address)
 }
 
 /**
+ * LDY Load index Y with memory
+ */
+void Cpu_Handle_OP_LDY(uint16_t address)
+{
+	global_cpu.Y = Mem_ReadB(address);
+	Cpu_SetZ(global_cpu.Y);
+	Cpu_SetN(global_cpu.Y);
+}
+
+/**
  * TXS Transfer index X to stack pointer
  */
 void Cpu_Handle_OP_TXS(uint16_t address)
@@ -437,7 +447,7 @@ void Cpu_Handle_OP_TXS(uint16_t address)
 void Cpu_Handle_OP_LDA(uint16_t address)
 {
 	global_cpu.A = Mem_ReadB(address);
-	printf("address=0x%x a=%d\n",address,global_cpu.A);
+	printf("LDA address=0x%x,a=%d\n",address,global_cpu.A);
 	Cpu_SetZ(global_cpu.A);
 	Cpu_SetN(global_cpu.A);
 }
@@ -527,6 +537,34 @@ void Cpu_Handle_OP_STA(uint16_t address)
 }
 
 /**
+ * STX Store index X in memory
+ */
+void Cpu_Handle_OP_STX(uint16_t address)
+{
+	Mem_WriteB(address,global_cpu.X);
+}
+
+/**
+ * DEX Decrement index X by one
+ */
+void Cpu_Handle_OP_DEX(uint16_t address)
+{
+	global_cpu.X--;
+	Cpu_SetZ(global_cpu.X);
+	Cpu_SetN(global_cpu.X);
+}
+
+/**
+ * DEX Decrement index Y by one
+ */
+void Cpu_Handle_OP_DEY(uint16_t address)
+{
+	global_cpu.Y--;
+	Cpu_SetZ(global_cpu.Y);
+	Cpu_SetN(global_cpu.Y);
+}
+
+/**
  * Dispatch op code
  * @param name    [OPNAME]
  * @param address [address]
@@ -541,17 +579,21 @@ void Cpu_Handle_OP(const char* name,uint16_t address)
 	{
 		Cpu_Handle_OP_CLD(address);
 	}
+	else if(strcmp(name,OP_LDA) == 0)
+	{
+		Cpu_Handle_OP_LDA(address);
+	}
 	else if(strcmp(name,OP_LDX) == 0)
 	{
 		Cpu_Handle_OP_LDX(address);
 	}
+	else if(strcmp(name,OP_LDY) == 0)
+	{
+		Cpu_Handle_OP_LDY(address);
+	}
 	else if(strcmp(name,OP_TXS) == 0)
 	{
 		Cpu_Handle_OP_TXS(address);
-	}
-	else if(strcmp(name,OP_LDA) == 0)
-	{
-		Cpu_Handle_OP_LDA(address);
 	}
 	else if(strcmp(name,OP_BPL) == 0)
 	{
@@ -580,6 +622,18 @@ void Cpu_Handle_OP(const char* name,uint16_t address)
 	else if(strcmp(name,OP_STA) == 0)
 	{
 		Cpu_Handle_OP_STA(address);
+	}
+	else if(strcmp(name,OP_STX) == 0)
+	{
+		Cpu_Handle_OP_STX(address);
+	}
+	else if(strcmp(name,OP_DEX) == 0)
+	{
+		Cpu_Handle_OP_DEX(address);
+	}
+	else if(strcmp(name,OP_DEY) == 0)
+	{
+		Cpu_Handle_OP_DEY(address);
 	}
 	else
 	{
@@ -717,9 +771,9 @@ int Cpu_Step(void)
 	Cpu_Handle_OP(OP->name,address);
 	
 
-	printf("DEBUG PC=0x%04x\n",global_cpu.PC);
+	printf("[%d]DEBUG PC=0x%04x\n",interrupt, global_cpu.PC);
 
-	if(interrupt++ == 17)
+	if((interrupt++)%17 == 0)
 	{
 		//ppu.
 		//PPU status register
